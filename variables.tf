@@ -44,10 +44,35 @@ variable "dns_subdomain" {
   description = "The subdomain to create on Route53 for the EB environment. For the subdomain to be created, the `dns_zone_id` variable must be set as well"
 }
 
-variable "allowed_security_groups" {
-  type        = list(string)
-  description = "List of security groups to add to the EC2 instances"
-  default     = []
+variable "create_security_group" {
+  type        = bool
+  description = "Create Security Group"
+  default     = true
+}
+
+variable "security_group_rules" {
+  type = list(any)
+  default = [
+    {
+      type        = "egress"
+      from_port   = 0
+      to_port     = 65535
+      protocol    = "-1"
+      cidr_blocks = ["0.0.0.0/0"]
+      description = "Allow ALL egress traffic"
+    }
+  ]
+  description = <<-EOT
+    A list of maps of Security Group rules. 
+    The values of map is fully complated with `aws_security_group_rule` resource. 
+    To get more info see https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group_rule .
+  EOT
+}
+
+variable "security_group_use_name_prefix" {
+  type        = bool
+  default     = false
+  description = "Whether to create a default Security Group with unique name beginning with the normalized prefix."
 }
 
 variable "additional_security_groups" {

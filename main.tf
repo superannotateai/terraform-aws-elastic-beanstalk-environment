@@ -296,27 +296,16 @@ resource "aws_iam_instance_profile" "ec2" {
   role = aws_iam_role.ec2.name
 }
 
-resource "aws_security_group" "default" {
-  name        = module.this.id
-  description = "Allow inbound traffic from provided Security Groups"
+module "default_sg" {
+  source          = "cloudposse/security-group/aws"
+  version         = "0.1.2"
+  use_name_prefix = var.security_group_use_name_prefix
+  rules           = var.security_group_rules
+  vpc_id          = var.vpc_id
+  description     = "EFS Security Group"
 
-  vpc_id = var.vpc_id
-
-  ingress {
-    from_port       = 0
-    to_port         = 0
-    protocol        = -1
-    security_groups = var.allowed_security_groups
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = module.this.tags
+  enabled = local.security_group_enabled
+  context = module.this.context
 }
 
 locals {
@@ -492,7 +481,8 @@ locals {
   ]
 
   # If the tier is "WebServer" add the elb_settings, otherwise exclude them
-  elb_settings_final = var.tier == "WebServer" ? var.loadbalancer_type == "application" ? concat(local.alb_settings, local.generic_elb_settings) : concat(local.classic_elb_settings, local.generic_elb_settings) : []
+  elb_settings_final     = var.tier == "WebServer" ? var.loadbalancer_type == "application" ? concat(local.alb_settings, local.generic_elb_settings) : concat(local.classic_elb_settings, local.generic_elb_settings) : []
+  security_group_enabled = module.this.enabled && var.create_default_security_group ? true : false
 }
 
 #
@@ -543,7 +533,7 @@ resource "aws_elastic_beanstalk_environment" "default" {
   setting {
     namespace = "aws:autoscaling:launchconfiguration"
     name      = "SecurityGroups"
-    value     = join(",", compact(sort(concat([aws_security_group.default.id], var.additional_security_groups))))
+    value     = join(",", compact(sort(concat([module.default_sg.id], var.additional_security_groups))))
     resource  = ""
   }
 
