@@ -302,14 +302,11 @@ resource "aws_security_group" "default" {
 
   vpc_id = var.vpc_id
 
-  dynamic "ingress" {
-    for_each = length(var.allowed_security_groups) == 0 ? [] : [1]
-    content {
-      from_port       = 0
-      to_port         = 0
-      protocol        = -1
-      security_groups = var.allowed_security_groups
-    }
+  ingress {
+    from_port       = 0
+    to_port         = 0
+    protocol        = -1
+    security_groups = var.allowed_security_groups
   }
 
   egress {
@@ -349,7 +346,7 @@ locals {
     {
       namespace = "aws:elb:listener"
       name      = "ListenerProtocol"
-      value     = "HTTP"
+      value     = var.loadbalancer_listener_protocol
     },
     {
       namespace = "aws:elb:listener"
@@ -382,6 +379,11 @@ locals {
       value     = var.loadbalancer_certificate_arn == "" ? "false" : "true"
     },
     {
+      namespace = "aws:elasticbeanstalk:environment:process:default"
+      name      = "Protocol"
+      value     = var.loadbalancer_type == "network" ? "TCP" : "HTTP"
+    },
+    {
       namespace = "aws:elb:listener:${var.ssh_listener_port}"
       name      = "ListenerProtocol"
       value     = "TCP"
@@ -408,15 +410,11 @@ locals {
     },
   ]
   alb_settings = [
-    {
-      namespace = "aws:elbv2:loadbalancer"
-      name      = "AccessLogsS3Bucket"
-      value     = join("", sort(aws_s3_bucket.elb_logs.*.id))
-    },
+
     {
       namespace = "aws:elbv2:loadbalancer"
       name      = "AccessLogsS3Enabled"
-      value     = "true"
+      value     = var.loadbalancer_type == "network" ? "false" : "true"
     },
     {
       namespace = "aws:elbv2:loadbalancer"
@@ -441,7 +439,7 @@ locals {
     {
       namespace = "aws:elbv2:listener:443"
       name      = "Protocol"
-      value     = "HTTPS"
+      value     = var.loadbalancer_type == "network" ? "TCP" : "HTTPS"
     },
     {
       namespace = "aws:elbv2:listener:443"
@@ -471,28 +469,13 @@ locals {
       namespace = "aws:elasticbeanstalk:environment"
       name      = "LoadBalancerType"
       value     = var.loadbalancer_type
-    },
-
+    }
+   ]
     ###===================== Application Load Balancer Health check settings =====================================================###
     # The Application Load Balancer health check does not take into account the Elastic Beanstalk health check path
     # http://docs.aws.amazon.com/elasticbeanstalk/latest/dg/environments-cfg-applicationloadbalancer.html
     # http://docs.aws.amazon.com/elasticbeanstalk/latest/dg/environments-cfg-applicationloadbalancer.html#alb-default-process.config
-    {
-      namespace = "aws:elasticbeanstalk:environment:process:default"
-      name      = "HealthCheckPath"
-      value     = var.healthcheck_url
-    },
-    {
-      namespace = "aws:elasticbeanstalk:environment:process:default"
-      name      = "Port"
-      value     = var.application_port
-    },
-    {
-      namespace = "aws:elasticbeanstalk:environment:process:default"
-      name      = "Protocol"
-      value     = "HTTP"
-    }
-  ]
+
 
   # If the tier is "WebServer" add the elb_settings, otherwise exclude them
   elb_settings_final = var.tier == "WebServer" ? var.loadbalancer_type == "application" ? concat(local.alb_settings, local.generic_elb_settings) : concat(local.classic_elb_settings, local.generic_elb_settings) : []
@@ -813,73 +796,6 @@ resource "aws_elastic_beanstalk_environment" "default" {
     value     = var.autoscale_upper_increment
     resource  = ""
   }
-
-  ###=========================== Scheduled Actions ========================== ###
-
-  dynamic "setting" {
-    for_each = var.scheduled_actions
-    content {
-      namespace = "aws:autoscaling:scheduledaction"
-      name      = "MinSize"
-      value     = setting.value.minsize
-      resource  = setting.value.name
-    }
-  }
-  dynamic "setting" {
-    for_each = var.scheduled_actions
-    content {
-      namespace = "aws:autoscaling:scheduledaction"
-      name      = "MaxSize"
-      value     = setting.value.maxsize
-      resource  = setting.value.name
-    }
-  }
-  dynamic "setting" {
-    for_each = var.scheduled_actions
-    content {
-      namespace = "aws:autoscaling:scheduledaction"
-      name      = "DesiredCapacity"
-      value     = setting.value.desiredcapacity
-      resource  = setting.value.name
-    }
-  }
-  dynamic "setting" {
-    for_each = var.scheduled_actions
-    content {
-      namespace = "aws:autoscaling:scheduledaction"
-      name      = "Recurrence"
-      value     = setting.value.recurrence
-      resource  = setting.value.name
-    }
-  }
-  dynamic "setting" {
-    for_each = var.scheduled_actions
-    content {
-      namespace = "aws:autoscaling:scheduledaction"
-      name      = "StartTime"
-      value     = setting.value.starttime
-      resource  = setting.value.name
-    }
-  }
-  dynamic "setting" {
-    for_each = var.scheduled_actions
-    content {
-      namespace = "aws:autoscaling:scheduledaction"
-      name      = "EndTime"
-      value     = setting.value.endtime
-      resource  = setting.value.name
-    }
-  }
-  dynamic "setting" {
-    for_each = var.scheduled_actions
-    content {
-      namespace = "aws:autoscaling:scheduledaction"
-      name      = "Suspend"
-      value     = setting.value.suspend ? "true" : "false"
-      resource  = setting.value.name
-    }
-  }
-
 
   ###=========================== Logging ========================== ###
 

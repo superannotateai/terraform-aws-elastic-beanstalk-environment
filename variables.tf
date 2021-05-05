@@ -25,6 +25,11 @@ variable "loadbalancer_type" {
   default     = "classic"
   description = "Load Balancer type, e.g. 'application' or 'classic'"
 }
+variable "loadbalancer_listener_protocol" {
+  type        = string
+  default     = "HTTP"
+  description = "Protocol to use for listener, defaults to HTTP (Can be TCP etc)"
+}
 
 variable "loadbalancer_crosszone" {
   type        = bool
@@ -493,19 +498,4 @@ variable "s3_bucket_encryption_enabled" {
   type        = bool
   default     = true
   description = "When set to 'true' the resource will have aes256 encryption enabled by default"
-}
-
-variable "scheduled_actions" {
-  type = list(object({
-    name            = string
-    minsize         = string
-    maxsize         = string
-    desiredcapacity = string
-    starttime       = string
-    endtime         = string
-    recurrence      = string
-    suspend         = bool
-  }))
-  default     = []
-  description = "Define a list of scheduled actions"
 }
